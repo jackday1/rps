@@ -67,13 +67,13 @@ const App = () => {
   }, [gameState]);
 
   return (
-    <div>
+    <div style={{ background: 'black' }}>
       <h1>Rock, Paper, Scissors Battle</h1>
       <canvas
         ref={canvasRef}
         width={800}
         height={600}
-        style={{ border: '1px solid black' }}
+        style={{ border: '1px solid white' }}
       />
 
       <img

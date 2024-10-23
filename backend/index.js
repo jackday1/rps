@@ -9,104 +9,103 @@ const io = socketIo(server, { cors: { origin: '*' } });
 
 const PORT = 8888;
 
-// Game constants
-const ITEM_COUNT = 25;
-const RECT_WIDTH = 800;
-const RECT_HEIGHT = 600;
-const ITEM_SIZE = 20;
-const SPEED = 2; // Slow speed for movement
+const width = 800;
+const height = 600;
+const itemCount = 25;
+const itemTypes = ['rock', 'paper', 'scissors'];
 
-// Types
-const TYPES = {
-  ROCK: 'rock',
-  PAPER: 'paper',
-  SCISSORS: 'scissors',
-};
-
-// Game state
-let items = [];
-
-// Initialize items with random positions
-function initGame() {
-  items = [];
-  // Add 25 rocks, 25 papers, 25 scissors
-  for (let i = 0; i < ITEM_COUNT; i++) {
-    items.push(createItem(TYPES.SCISSORS));
-    items.push(createItem(TYPES.ROCK));
-    items.push(createItem(TYPES.PAPER));
-  }
-}
-
-// Create an item of a specific type at a random position
-function createItem(type) {
+// Helper function to generate random velocity
+function getRandomVelocity() {
   return {
-    id: Math.random().toString(36).substr(2, 9),
-    type,
-    x: Math.random() * RECT_WIDTH,
-    y: Math.random() * RECT_HEIGHT,
-    dx: (Math.random() - 0.5) * SPEED,
-    dy: (Math.random() - 0.5) * SPEED,
+    x: Math.random() * 2 - 1, // random velocity between -1 and 1
+    y: Math.random() * 2 - 1, // random velocity between -1 and 1
   };
 }
 
-// Check collision and change the type based on game rules
-function handleCollision(item1, item2) {
-  const distance = Math.hypot(item1.x - item2.x, item1.y - item2.y);
-  if (distance < ITEM_SIZE) {
-    if (
-      (item1.type === TYPES.ROCK && item2.type === TYPES.SCISSORS) ||
-      (item1.type === TYPES.PAPER && item2.type === TYPES.ROCK) ||
-      (item1.type === TYPES.SCISSORS && item2.type === TYPES.PAPER)
-    ) {
-      item2.type = item1.type; // item1 wins
-    } else if (
-      (item2.type === TYPES.ROCK && item1.type === TYPES.SCISSORS) ||
-      (item2.type === TYPES.PAPER && item1.type === TYPES.ROCK) ||
-      (item2.type === TYPES.SCISSORS && item1.type === TYPES.PAPER)
-    ) {
-      item1.type = item2.type; // item2 wins
-    }
+// Helper function to get initial positions by clusters
+function getInitialPosition(type) {
+  const clusterPadding = 100;
+  if (type === 'rock') {
+    return {
+      x: Math.random() * (width / 3 - clusterPadding) + clusterPadding / 2,
+      y: Math.random() * (height - clusterPadding) + clusterPadding / 2,
+    };
+  } else if (type === 'paper') {
+    return {
+      x:
+        Math.random() * (width / 3 - clusterPadding) +
+        width / 3 +
+        clusterPadding / 2,
+      y: Math.random() * (height - clusterPadding) + clusterPadding / 2,
+    };
+  } else {
+    return {
+      x:
+        Math.random() * (width / 3 - clusterPadding) +
+        (2 * width) / 3 +
+        clusterPadding / 2,
+      y: Math.random() * (height - clusterPadding) + clusterPadding / 2,
+    };
   }
 }
 
-// Update game state
-function updateGame() {
-  // Move items
-  items.forEach((item) => {
-    item.x += item.dx;
-    item.y += item.dy;
-
-    // Handle boundary collision (bounce back)
-    if (item.x < 0 || item.x > RECT_WIDTH) item.dx = -item.dx;
-    if (item.y < 0 || item.y > RECT_HEIGHT) item.dy = -item.dy;
-  });
-
-  // Check for collisions and handle
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      handleCollision(items[i], items[j]);
-    }
+// Initialize game state
+let gameState = [];
+itemTypes.forEach((type) => {
+  for (let i = 0; i < itemCount; i++) {
+    const position = getInitialPosition(type);
+    const velocity = getRandomVelocity();
+    gameState.push({
+      type,
+      x: position.x,
+      y: position.y,
+      vx: velocity.x,
+      vy: velocity.y,
+    });
   }
-
-  // Emit the updated game state to clients
-  io.emit('gameState', items);
-}
-
-// Set up socket.io connection
-io.on('connection', (socket) => {
-  console.log('New client connected');
-
-  // Send initial game state to the client
-  socket.emit('gameState', items);
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
 });
 
-// Start the game loop
-initGame();
-setInterval(updateGame, 1000 / 60); // 60 updates per second
+setInterval(() => {
+  // Update positions and handle edge of canvas collisions
+  gameState.forEach((item) => {
+    item.x += item.vx;
+    item.y += item.vy;
+
+    // Bounce off walls
+    if (item.x <= 0 || item.x >= width) item.vx *= -1;
+    if (item.y <= 0 || item.y >= height) item.vy *= -1;
+
+    // Simulate simple "touch" collision detection
+    gameState.forEach((otherItem) => {
+      if (
+        item !== otherItem &&
+        Math.abs(item.x - otherItem.x) < 20 &&
+        Math.abs(item.y - otherItem.y) < 20
+      ) {
+        // Check winning condition
+        if (
+          (item.type === 'rock' && otherItem.type === 'scissors') ||
+          (item.type === 'scissors' && otherItem.type === 'paper') ||
+          (item.type === 'paper' && otherItem.type === 'rock')
+        ) {
+          otherItem.type = item.type; // Loser turns into the winner's type
+
+          // Change the velocity of both items on collision
+          const newVelocity1 = getRandomVelocity();
+          const newVelocity2 = getRandomVelocity();
+
+          item.vx = newVelocity1.x;
+          item.vy = newVelocity1.y;
+          otherItem.vx = newVelocity2.x;
+          otherItem.vy = newVelocity2.y;
+        }
+      }
+    });
+  });
+
+  // Emit updated game state
+  io.emit('gameState', gameState);
+}, 1000 / 30);
 
 // Start server
 server.listen(PORT, () => {
