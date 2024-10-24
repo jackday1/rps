@@ -13,12 +13,13 @@ const width = 800;
 const height = 600;
 const itemCount = 25;
 const itemTypes = ['rock', 'paper', 'scissors'];
+const speed = 2;
 
 // Helper function to generate random velocity
 function getRandomVelocity() {
   return {
-    x: Math.random() * 2 - 1, // random velocity between -1 and 1
-    y: Math.random() * 2 - 1, // random velocity between -1 and 1
+    x: (Math.random() * 2 - 1) * speed,
+    y: (Math.random() * 2 - 1) * speed,
   };
 }
 
